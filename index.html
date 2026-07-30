@@ -1,0 +1,739 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#f4f1ea">
+<title>音声文字起こしノート Version 0.5 AI先生 画像対応原型</title>
+<style>
+:root{
+  --bg:#eeeae1; --paper:#fffef9; --ink:#252525; --muted:#6d6a63;
+  --line:#d8d3c8; --accent:#2767d8; --danger:#b3261e;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif}
+body{padding:max(10px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right))
+  max(10px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left))}
+.app{max-width:1100px;margin:auto}
+header{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+h1{font-size:clamp(20px,3vw,30px);margin:0 auto 0 0}
+.status{font-size:14px;color:var(--muted);min-width:130px}
+.toolbar,.drawbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+button,select,input[type="color"],input[type="range"]{
+  min-height:44px;border:1px solid var(--line);border-radius:12px;background:#fff;
+  font-size:16px;padding:8px 12px;color:var(--ink)
+}
+button{font-weight:650;cursor:pointer}
+button.primary{background:var(--accent);color:white;border-color:var(--accent)}
+button.danger{color:var(--danger)}
+button.active{outline:3px solid rgba(39,103,216,.25);border-color:var(--accent)}
+button:disabled{opacity:.45}
+.meta{display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:10px}
+#title{min-height:46px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:18px;width:100%}
+.workspace{position:relative;background:var(--paper);border:1px solid var(--line);border-radius:16px;
+  box-shadow:0 8px 24px rgba(0,0,0,.06);overflow:hidden;height:min(68vh,780px);min-height:430px}
+#editor{position:absolute;inset:0;width:100%;height:100%;resize:none;border:0;outline:0;
+  padding:34px 36px 80px;font-size:21px;line-height:1.8;background:
+  repeating-linear-gradient(to bottom,transparent 0,transparent calc(1.8em - 1px),#ebe7de calc(1.8em - 1px),#ebe7de 1.8em);
+  color:var(--ink);caret-color:var(--accent);overflow:auto}
+#canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;pointer-events:none}
+.drawbar{margin-top:10px;background:rgba(255,255,255,.75);padding:8px;border-radius:14px}
+.drawbar label{display:flex;align-items:center;gap:6px;font-size:14px}
+.spacer{flex:1}
+.hint{font-size:13px;color:var(--muted);margin:8px 4px 0;line-height:1.5}
+#interim{position:fixed;left:50%;bottom:max(18px,env(safe-area-inset-bottom));transform:translateX(-50%);
+  background:rgba(20,20,20,.86);color:#fff;border-radius:14px;padding:10px 15px;max-width:88vw;
+  font-size:16px;display:none;z-index:9}
+
+.library-dialog{
+  width:min(760px,94vw);max-height:82vh;border:1px solid var(--line);border-radius:18px;
+  padding:0;background:var(--paper);color:var(--ink);box-shadow:0 22px 60px rgba(0,0,0,.24)
+}
+.library-dialog::backdrop{background:rgba(0,0,0,.34);backdrop-filter:blur(2px)}
+.library-head{display:flex;gap:10px;align-items:center;padding:14px;border-bottom:1px solid var(--line)}
+.library-head h2{font-size:21px;margin:0;white-space:nowrap}
+.library-head input{width:100%;min-height:44px;border:1px solid var(--line);border-radius:12px;padding:9px 12px;font-size:16px}
+.library-list{padding:10px;overflow:auto;max-height:60vh}
+.note-card{display:grid;grid-template-columns:1fr auto;gap:10px;padding:12px;border:1px solid var(--line);
+  border-radius:14px;margin-bottom:9px;background:#fff}
+.note-card-title{font-size:17px;font-weight:700}
+.note-card-meta{font-size:13px;color:var(--muted);margin-top:4px}
+.note-card-preview{font-size:14px;color:var(--muted);margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.note-actions{display:flex;gap:7px;align-items:center}
+.note-actions button{min-height:38px;padding:6px 10px;font-size:14px}
+.empty-list{text-align:center;color:var(--muted);padding:35px 10px}
+.version{font-size:12px;color:var(--muted)}
+
+.ai-panel{margin-top:14px;background:var(--paper);border:1px solid var(--line);border-radius:16px;
+  box-shadow:0 8px 24px rgba(0,0,0,.05);overflow:hidden}
+.ai-panel summary{display:flex;align-items:center;gap:10px;cursor:pointer;padding:16px 18px;
+  font-size:20px;font-weight:750;list-style:none;user-select:none}
+.ai-panel summary::-webkit-details-marker{display:none}
+.ai-panel summary::after{content:"＋";margin-left:auto;color:var(--accent);font-size:24px}
+.ai-panel[open] summary::after{content:"−"}
+.ai-body{padding:0 16px 18px;border-top:1px solid var(--line)}
+.ai-lead{color:var(--muted);line-height:1.65;margin:14px 2px 10px}
+#aiProblem{width:100%;min-height:145px;resize:vertical;border:1px solid var(--line);border-radius:14px;
+  padding:14px;font:17px/1.65 -apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif;color:var(--ink)}
+.ai-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0}
+.ai-note{font-size:13px;color:var(--muted);line-height:1.5;margin:6px 2px 12px}
+.ai-image-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0}
+.ai-image-box{display:none;position:relative;width:min(100%,680px);margin:10px 0 14px;border:1px solid var(--line);
+  border-radius:14px;background:#f7f5ef;padding:10px}
+.ai-image-box.has-image{display:block}
+#aiImagePreview{display:block;max-width:100%;max-height:440px;margin:auto;border-radius:10px;object-fit:contain;background:#fff}
+.ai-image-caption{font-size:13px;color:var(--muted);margin:8px 2px 0;overflow-wrap:anywhere}
+.ai-image-warning{padding:10px 12px;border-left:4px solid #d28b16;background:#fff8e7;border-radius:8px;
+  font-size:14px;line-height:1.6;margin:10px 0 14px}
+.ai-results{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.ai-card{border:1px solid var(--line);border-radius:14px;background:#fff;padding:12px}
+.ai-card h3{font-size:16px;margin:0 0 8px;color:#174d9f}
+.ai-card textarea{width:100%;min-height:150px;resize:vertical;border:0;border-top:1px solid #ebe7de;
+  padding:10px 2px 2px;outline:0;font:15px/1.65 -apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif;color:var(--ink)}
+.ai-card.wide{grid-column:1/-1}
+.ai-card.wide textarea{min-height:185px}
+
+@media(max-width:650px){
+  #editor{padding:24px 18px 70px;font-size:18px}
+  .workspace{height:64vh}
+  button,select{font-size:15px;padding:7px 10px}
+  .ai-results{grid-template-columns:1fr}
+  .ai-card.wide{grid-column:auto}
+}
+@media print{
+  body{background:#fff;padding:0}.toolbar,.drawbar,.hint,.meta button,.status{display:none!important}
+  .workspace{border:0;box-shadow:none;height:auto;min-height:90vh}
+}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <h1>音声文字起こしノート <span class="version">v0.5 AI先生 画像対応原型</span></h1>
+  <span class="status" id="status">待機中</span>
+  <div class="toolbar">
+    <button class="primary" id="mic">🎙 文字起こし開始</button>
+    <button id="stop" disabled>■ 停止</button>
+    <select id="lang" aria-label="認識言語">
+      <option value="ja-JP">日本語</option>
+      <option value="en-US">英語</option>
+    </select>
+    <button id="save">保存</button>
+    <button id="load">前回を読込</button>
+    <button id="saveAs">名前を付けて保存</button>
+    <button id="library">ノート一覧</button>
+    <button id="icloud">☁️ iCloud共有</button>
+    <button id="backup">⬇️ バックアップ</button>
+    <button id="restore">📂 復元</button>
+    <input type="file" id="restoreFile" accept=".json" style="display:none">
+    <button id="exportTxt">TXT</button>
+    <button id="exportHtml">HTML</button>
+  </div>
+</header>
+
+<div class="meta">
+  <input id="title" value="新しいノート" aria-label="文書タイトル">
+  <button class="danger" id="newDoc">新規</button>
+</div>
+
+<div class="workspace" id="workspace">
+  <textarea id="editor" spellcheck="true" placeholder="ここに文字起こし結果が入ります。キーボードでも自由に編集できます。"></textarea>
+  <canvas id="canvas" aria-label="手書き注釈レイヤー"></canvas>
+</div>
+
+<div class="drawbar">
+  <button id="textMode" class="active">⌨️ 文字編集</button>
+  <button id="penMode">✏️ ペン</button>
+  <button id="highlighterMode">🖍 蛍光ペン</button>
+  <button id="eraserMode">消しゴム</button>
+  <label>色 <input type="color" id="color" value="#d92121"></label>
+  <label>太さ <input type="range" id="width" min="1" max="24" value="4"></label>
+  <span class="spacer"></span>
+  <button id="undo">↶ 戻す</button>
+  <button id="clearInk" class="danger">注釈消去</button>
+  <button id="exportPng">画像保存</button>
+</div>
+
+<p class="hint">
+Safariで開き、最初の使用時にマイクを許可してください。音声認識にはSiri／音声入力が有効である必要があります。
+「ホーム画面に追加」した状態で音声認識できない場合は、Safariの通常タブで開いてください。
+</p>
+
+<details class="ai-panel" id="aiPanel">
+  <summary>🤖 AI先生 ― 問題から教材研究を広げる</summary>
+  <div class="ai-body">
+    <p class="ai-lead">問題文を貼り付けて「教材研究案を作る」を押してください。生成後の文章は自由に直せます。</p>
+    <textarea id="aiProblem" spellcheck="true" placeholder="ここに問題文を貼り付けます。例：ある数に3を加えて2倍すると18になりました。ある数を求めなさい。"></textarea>
+    <div class="ai-image-tools">
+      <button id="aiChooseImage">🖼️ 図・グラフを選ぶ</button>
+      <button id="aiPasteImage">📋 画像を貼り付け</button>
+      <button id="aiRemoveImage" class="danger" disabled>画像を外す</button>
+      <input type="file" id="aiImageFile" accept="image/*" style="display:none">
+    </div>
+    <div class="ai-image-box" id="aiImageBox">
+      <img id="aiImagePreview" alt="問題に添付した図・図形・グラフ">
+      <p class="ai-image-caption" id="aiImageCaption"></p>
+    </div>
+    <p class="ai-image-warning" id="aiImageWarning">
+      現在の端末内原型は、画像を保存・表示できますが、図の内容そのものはまだ読み取れません。
+      図だけに書かれている条件は問題文にも入力してください。
+    </p>
+    <div class="ai-actions">
+      <button class="primary" id="aiGenerate">✨ 教材研究案を作る</button>
+      <button id="aiFromNote">ノート本文を問題欄へ</button>
+      <button id="aiAppend">結果をノート本文へ追加</button>
+      <button id="aiClear" class="danger">AI先生欄を消去</button>
+    </div>
+    <p class="ai-note">この原型は端末内で下書きを作ります。個人情報やAPIキーを外部へ送信しません。内容は必ず先生が確認・修正してください。</p>
+    <div class="ai-results">
+      <section class="ai-card wide"><h3>【分析】本質・誤解しやすい点・前提知識</h3><textarea id="aiAnalysis" placeholder="分析結果"></textarea></section>
+      <section class="ai-card"><h3>【類題①】数字だけ変更</h3><textarea id="aiVariant1" placeholder="類題①"></textarea></section>
+      <section class="ai-card"><h3>【類題②】条件を逆にする</h3><textarea id="aiVariant2" placeholder="類題②"></textarea></section>
+      <section class="ai-card"><h3>【類題③】図形に置き換える</h3><textarea id="aiVariant3" placeholder="類題③"></textarea></section>
+      <section class="ai-card"><h3>【類題④】高校入試レベルへ発展</h3><textarea id="aiVariant4" placeholder="類題④"></textarea></section>
+      <section class="ai-card wide"><h3>【授業】導入・活動・共有・まとめ</h3><textarea id="aiLesson" placeholder="授業案"></textarea></section>
+    </div>
+  </div>
+</details>
+</div>
+
+<dialog id="libraryDialog" class="library-dialog">
+  <div class="library-head">
+    <h2>保存ノート</h2>
+    <input id="librarySearch" type="search" placeholder="タイトル・本文を検索">
+    <button id="closeLibrary">閉じる</button>
+  </div>
+  <div id="libraryList" class="library-list"></div>
+</dialog>
+
+<div id="interim"></div>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const editor=$('editor'), canvas=$('canvas'), ctx=canvas.getContext('2d');
+const workspace=$('workspace'), statusEl=$('status'), interimEl=$('interim');
+let recognition=null, listening=false, manualStop=false;
+let drawing=false, mode='text', points=[], history=[], saveTimer=null;
+let aiImage={dataUrl:'',name:'',type:'',width:0,height:0};
+
+function setStatus(t){statusEl.textContent=t}
+function stamp(){return new Date().toLocaleString('ja-JP')}
+
+const AI_FIELDS=['aiAnalysis','aiVariant1','aiVariant2','aiVariant3','aiVariant4','aiLesson'];
+function aiState(){
+  const results={};
+  AI_FIELDS.forEach(id=>results[id]=$(id).value);
+  return {problem:$('aiProblem').value,image:aiImage,results};
+}
+function applyAiState(ai){
+  $('aiProblem').value=ai?.problem||'';
+  setAiImage(ai?.image||null);
+  AI_FIELDS.forEach(id=>$(id).value=ai?.results?.[id]||'');
+  if(ai?.problem||ai?.image?.dataUrl||AI_FIELDS.some(id=>$(id).value))$('aiPanel').open=true;
+}
+function setAiImage(image){
+  aiImage=image?.dataUrl?{
+    dataUrl:image.dataUrl,name:image.name||'添付画像',type:image.type||'image/jpeg',
+    width:Number(image.width)||0,height:Number(image.height)||0
+  }:{dataUrl:'',name:'',type:'',width:0,height:0};
+  const has=Boolean(aiImage.dataUrl);
+  $('aiImagePreview').src=has?aiImage.dataUrl:'';
+  $('aiImageBox').classList.toggle('has-image',has);
+  $('aiRemoveImage').disabled=!has;
+  $('aiImageCaption').textContent=has?
+    `${aiImage.name}${aiImage.width&&aiImage.height?`（${aiImage.width}×${aiImage.height}）`:''}`:'';
+}
+function prepareAiImage(file){
+  if(!file||!file.type?.startsWith('image/')){alert('画像ファイルを選んでください。');return}
+  if(file.size>20*1024*1024){alert('画像が大きすぎます。20MB以下の画像を選んでください。');return}
+  const reader=new FileReader();
+  reader.onerror=()=>alert('画像を読み込めませんでした。');
+  reader.onload=()=>{
+    const im=new Image();
+    im.onerror=()=>alert('画像を表示できませんでした。');
+    im.onload=()=>{
+      const max=1600, scale=Math.min(1,max/Math.max(im.naturalWidth,im.naturalHeight));
+      const width=Math.max(1,Math.round(im.naturalWidth*scale));
+      const height=Math.max(1,Math.round(im.naturalHeight*scale));
+      const out=document.createElement('canvas');out.width=width;out.height=height;
+      const c=out.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,width,height);c.drawImage(im,0,0,width,height);
+      setAiImage({dataUrl:out.toDataURL('image/jpeg',.86),name:file.name||'貼り付けた画像.jpg',
+        type:'image/jpeg',width,height});
+      $('aiPanel').open=true;autosave();setStatus('問題画像を追加しました');
+    };
+    im.src=reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+$('aiChooseImage').onclick=()=>$('aiImageFile').click();
+$('aiImageFile').onchange=e=>{prepareAiImage(e.target.files?.[0]);e.target.value=''};
+$('aiRemoveImage').onclick=()=>{
+  if(confirm('添付した画像を外しますか？')){setAiImage(null);autosave();setStatus('問題画像を外しました')}
+};
+$('aiPasteImage').onclick=async()=>{
+  try{
+    if(!navigator.clipboard?.read)throw new Error('unsupported');
+    const items=await navigator.clipboard.read();
+    for(const item of items){
+      const type=item.types.find(t=>t.startsWith('image/'));
+      if(type){const blob=await item.getType(type);prepareAiImage(new File([blob],'貼り付けた画像.png',{type}));return}
+    }
+    alert('クリップボードに画像がありません。');
+  }catch(_){
+    alert('このブラウザではボタンから貼り付けられません。問題文の欄を選び、通常の「ペースト」をお試しください。');
+  }
+};
+$('aiProblem').addEventListener('paste',e=>{
+  const fromFiles=[...(e.clipboardData?.files||[])].find(f=>f.type.startsWith('image/'));
+  const fromItems=[...(e.clipboardData?.items||[])]
+    .find(item=>item.kind==='file'&&item.type.startsWith('image/'))?.getAsFile();
+  const file=fromFiles||fromItems;
+  if(file){e.preventDefault();prepareAiImage(file)}
+});
+function replaceNumbers(text){
+  let index=0;
+  return text.replace(/-?\d+(?:\.\d+)?/g,n=>{
+    const value=Number(n), delta=[1,2,3,-1][index++%4];
+    if(!Number.isFinite(value))return n;
+    const next=value===0?delta:value+delta;
+    return String(Number.isInteger(value)?Math.round(next):Number(next.toFixed(2)));
+  });
+}
+function firstSentence(text){
+  return (text.split(/[。\n]/).map(s=>s.trim()).find(Boolean)||text.trim()).slice(0,140);
+}
+function generateTeachingDraft(){
+  const p=$('aiProblem').value.trim();
+  if(!p){alert('最初に問題文を貼り付けてください。');$('aiProblem').focus();return}
+  const focus=firstSentence(p);
+  const changed=replaceNumbers(p);
+  $('aiAnalysis').value=
+`【本質】
+・「${focus}」で、既知の条件を整理し、求めるものへ筋道を立てて結び付けること。
+・答えだけでなく、どの条件をどの順に使ったかを説明すること。
+
+【生徒が誤解しやすい点】
+・与えられた数値や条件をすべて同じ重要度で扱ってしまう。
+・途中の関係を式・図・表に表さず、見通しのない計算を始める。
+・求めた値が問題の条件を満たすか確かめない。
+
+【必要な前提知識】
+・問題文から「分かっていること／求めること」を分ける力。
+・数量や図形の関係を、式・図・表のいずれかで表す力。
+・計算結果を元の条件に戻して検算する力。
+
+【先生が確認したい問い】
+・この問題で変わる量と変わらない条件は何か。
+・一つの解法だけでなく、別の表現や解法が可能か。`;
+  $('aiVariant1').value=
+`次の問題を解きなさい。元問題と同じ考え方を使い、数値だけを変えています。
+
+${changed===p?'【数値変更案】元問題の数値を、計算が簡潔になる別の値に置き換えてください。\n'+p:changed}
+
+【確認】数値を変えた後も条件が矛盾せず、答えが適切になるよう先生が調整してください。`;
+  $('aiVariant2').value=
+`【逆向きの問い】
+元問題では「求めるもの」だった量を条件として与え、元問題で与えられていた条件の一つを求める問題に作り替える。
+
+元問題：
+${p}
+
+問いの例：
+「元問題の答えが先に分かっているとき、どの条件なら元の関係が成り立つか。理由も説明しなさい。」`;
+  $('aiVariant3').value=
+`【図形への置き換え】
+元問題の数量関係を、線分図・面積図・座標・相似な図形のいずれかで表す。
+
+問題案：
+「${focus}」に含まれる数量の関係を図に表し、その図から未知の長さ・面積・座標を求めなさい。また、元問題と同じ関係が図のどこに現れているか説明しなさい。
+
+【図の設計メモ】
+・既知量は実線、未知量は記号で示す。
+・不要な情報を一つ加え、必要な条件を選ばせてもよい。`;
+  $('aiVariant4').value=
+`【高校入試レベルへの発展】
+${p}
+
+上の状況に条件を一つ追加し、次の3段階で問う。
+（1）基本となる量を求める。
+（2）条件が変化したときの関係を式・図・表で表す。
+（3）成り立つ範囲や最適な場合を、根拠を示して説明する。
+
+【発展の観点】
+・複数分野を結び付ける。
+・答えだけでなく説明を求める。
+・一部の条件を生徒自身に選択させる。`;
+  $('aiLesson').value=
+`【導入】
+元問題を提示し、「最初に何が分かれば解けそうか」を個人で考える。
+
+【活動】
+1. 分かっていることと求めることを色分けする。
+2. 式・図・表から表現方法を一つ選び、解決する。
+3. 類題①で、数値が変わっても同じ考え方が使えるか確かめる。
+
+【共有】
+異なる解法や表現を並べ、共通する考え方と違いを言葉にする。
+
+【深める】
+類題②または③を提示し、条件の向きや表現が変わると何が難しくなるか話し合う。
+
+【まとめ】
+「この問題の本質は何だったか」を一文で書く。
+
+【評価】
+・条件を整理できたか。
+・根拠を示して説明できたか。
+・別の問題へ考え方を移せたか。`;
+  $('aiPanel').open=true;
+  autosave();
+  setStatus(aiImage.dataUrl?'文章の条件から教材研究案を作りました（画像は未解析）':'AI先生の教材研究案を作りました');
+}
+$('aiGenerate').onclick=generateTeachingDraft;
+$('aiFromNote').onclick=()=>{
+  if(editor.value.trim()&&$('aiProblem').value.trim()&&!confirm('問題欄をノート本文で置き換えますか？'))return;
+  $('aiProblem').value=editor.value.trim();$('aiPanel').open=true;autosave();
+};
+$('aiAppend').onclick=()=>{
+  const p=$('aiProblem').value.trim();
+  if(!p&&!AI_FIELDS.some(id=>$(id).value.trim())){alert('追加する内容がありません。');return}
+  const labels={aiAnalysis:'【分析】',aiVariant1:'【類題① 数字変更】',aiVariant2:'【類題② 条件を逆にする】',
+    aiVariant3:'【類題③ 図形に置き換える】',aiVariant4:'【類題④ 高校入試レベルへ発展】',aiLesson:'【授業】'};
+  let block='\n\n＝＝＝＝ 🤖 AI先生 教材研究 ＝＝＝＝\n';
+  if(p)block+='【元問題】\n'+p+'\n\n';
+  AI_FIELDS.forEach(id=>{if($(id).value.trim())block+=labels[id]+'\n'+$(id).value.trim()+'\n\n'});
+  editor.value=editor.value.replace(/\s*$/,'')+block.trimEnd()+'\n';
+  editor.dispatchEvent(new Event('input'));setStatus('教材研究案をノート本文へ追加しました');
+};
+$('aiClear').onclick=()=>{
+  if(!confirm('AI先生の問題文と結果を消去しますか？'))return;
+  $('aiProblem').value='';setAiImage(null);AI_FIELDS.forEach(id=>$(id).value='');autosave();
+};
+$('aiProblem').addEventListener('input',autosave);
+AI_FIELDS.forEach(id=>$(id).addEventListener('input',autosave));
+
+function resizeCanvas(){
+  const old = document.createElement('canvas');
+  old.width=canvas.width; old.height=canvas.height;
+  if(old.width && old.height) old.getContext('2d').drawImage(canvas,0,0);
+  const r=workspace.getBoundingClientRect(), dpr=Math.max(1,window.devicePixelRatio||1);
+  canvas.width=Math.round(r.width*dpr); canvas.height=Math.round(r.height*dpr);
+  canvas.style.width=r.width+'px'; canvas.style.height=r.height+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  if(old.width && old.height) ctx.drawImage(old,0,0,old.width,old.height,0,0,r.width,r.height);
+}
+new ResizeObserver(resizeCanvas).observe(workspace);
+
+function setMode(next){
+  mode=next;
+  canvas.style.pointerEvents = next==='text' ? 'none' : 'auto';
+  editor.style.pointerEvents = next==='text' ? 'auto' : 'none';
+  ['textMode','penMode','highlighterMode','eraserMode'].forEach(id=>$(id).classList.remove('active'));
+  $({text:'textMode',pen:'penMode',highlighter:'highlighterMode',eraser:'eraserMode'}[next]).classList.add('active');
+}
+$('textMode').onclick=()=>setMode('text');
+$('penMode').onclick=()=>setMode('pen');
+$('highlighterMode').onclick=()=>setMode('highlighter');
+$('eraserMode').onclick=()=>setMode('eraser');
+
+function pos(e){
+  const r=canvas.getBoundingClientRect();
+  const p=e.touches?.[0]||e;
+  return {x:p.clientX-r.left,y:p.clientY-r.top};
+}
+function snapshot(){
+  history.push(canvas.toDataURL());
+  if(history.length>25)history.shift();
+}
+function startDraw(e){
+  e.preventDefault(); snapshot(); drawing=true; points=[pos(e)];
+}
+function moveDraw(e){
+  if(!drawing)return; e.preventDefault();
+  const p=pos(e), prev=points[points.length-1]; points.push(p);
+  ctx.save(); ctx.lineCap='round'; ctx.lineJoin='round';
+  if(mode==='eraser'){
+    ctx.globalCompositeOperation='destination-out'; ctx.lineWidth=Number($('width').value)*2.5;
+  }else{
+    ctx.globalCompositeOperation='source-over';
+    ctx.strokeStyle=$('color').value;
+    ctx.globalAlpha=mode==='highlighter'?.28:1;
+    ctx.lineWidth=mode==='highlighter'?Number($('width').value)*3:Number($('width').value);
+  }
+  ctx.beginPath();ctx.moveTo(prev.x,prev.y);ctx.lineTo(p.x,p.y);ctx.stroke();ctx.restore();
+}
+function endDraw(){ if(drawing){drawing=false; autosave();} }
+canvas.addEventListener('pointerdown',startDraw);
+canvas.addEventListener('pointermove',moveDraw);
+window.addEventListener('pointerup',endDraw);
+$('undo').onclick=()=>{
+  const src=history.pop(); if(!src)return;
+  const im=new Image(); im.onload=()=>{ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(im,0,0,workspace.clientWidth,workspace.clientHeight);autosave()};im.src=src;
+};
+$('clearInk').onclick=()=>{if(confirm('手書き注釈をすべて消去しますか？')){snapshot();ctx.clearRect(0,0,canvas.width,canvas.height);autosave()}};
+
+function insertText(text){
+  const start=editor.selectionStart, end=editor.selectionEnd;
+  const prefix=(start>0 && !/\s$/.test(editor.value.slice(0,start)))?'':'';
+  editor.setRangeText(prefix+text,start,end,'end');
+  editor.dispatchEvent(new Event('input'));
+  editor.scrollTop=editor.scrollHeight;
+}
+
+function setupRecognition(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ setStatus('音声認識非対応'); $('mic').disabled=true; return; }
+  recognition=new SR();
+  recognition.lang=$('lang').value;
+  recognition.continuous=true;
+  recognition.interimResults=true;
+  recognition.maxAlternatives=1;
+  recognition.onstart=()=>{listening=true;setStatus('認識中…');$('mic').disabled=true;$('stop').disabled=false};
+  recognition.onresult=e=>{
+    let finalText='', interim='';
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      const t=e.results[i][0].transcript;
+      if(e.results[i].isFinal) finalText+=t;
+      else interim+=t;
+    }
+    if(finalText) insertText(finalText+'。');
+    interimEl.textContent=interim;
+    interimEl.style.display=interim?'block':'none';
+  };
+  recognition.onerror=e=>{
+    const msg={not_allowed:'マイクが許可されていません',audio_capture:'マイクを確認してください',
+      network:'通信エラー',no_speech:'音声を検出できませんでした'}[e.error]||('認識エラー: '+e.error);
+    setStatus(msg);
+    if(e.error==='not-allowed'||e.error==='service-not-allowed') manualStop=true;
+  };
+  recognition.onend=()=>{
+    listening=false; interimEl.style.display='none';
+    if(!manualStop){
+      setTimeout(()=>{try{recognition.start()}catch(_){}},350);
+    }else{
+      setStatus('停止');$('mic').disabled=false;$('stop').disabled=true;
+    }
+  };
+}
+setupRecognition();
+
+$('lang').onchange=()=>{if(recognition)recognition.lang=$('lang').value};
+$('mic').onclick=()=>{
+  manualStop=false; 
+  try{recognition.lang=$('lang').value;recognition.start()}catch(e){setStatus('開始できません。少し待って再度お試しください')}
+};
+$('stop').onclick=()=>{manualStop=true;try{recognition.stop()}catch(_){}};
+
+const KEY='ipadVoiceNote.v1';
+const LIBRARY_KEY='ipadVoiceNote.library.v3';
+const CURRENT_ID_KEY='ipadVoiceNote.currentId.v3';
+let currentId=localStorage.getItem(CURRENT_ID_KEY)||crypto.randomUUID();
+
+function project(){
+  return {
+    version:5,id:currentId,title:$('title').value.trim()||'無題',
+    text:editor.value,ink:canvas.toDataURL('image/png'),
+    aiTeacher:aiState(),
+    updatedAt:new Date().toISOString()
+  };
+}
+function getLibrary(){
+  try{return JSON.parse(localStorage.getItem(LIBRARY_KEY)||'[]')}catch(_){return []}
+}
+function setLibrary(items){
+  localStorage.setItem(LIBRARY_KEY,JSON.stringify(items));
+}
+function saveToLibrary(show=false){
+  const d=project(), items=getLibrary();
+  const i=items.findIndex(x=>x.id===d.id);
+  if(i>=0)items[i]=d;else items.unshift(d);
+  items.sort((a,b)=>(b.updatedAt||'').localeCompare(a.updatedAt||''));
+  setLibrary(items);
+  localStorage.setItem(CURRENT_ID_KEY,currentId);
+  if(show)setStatus('ノートを保存しました '+stamp());
+}
+function saveLocal(show=true){
+  try{
+    const d=project();
+    localStorage.setItem(KEY,JSON.stringify(d));
+    saveToLibrary(false);
+    if(show)setStatus('保存しました '+stamp());
+  }catch(e){setStatus('保存容量が不足しています')}
+}
+function autosave(){clearTimeout(saveTimer);saveTimer=setTimeout(()=>saveLocal(false),500)}
+editor.addEventListener('input',autosave);
+$('title').addEventListener('input',autosave);
+$('save').onclick=()=>saveLocal(true);
+
+function applyProject(d,show=true){
+  currentId=d.id||crypto.randomUUID();
+  localStorage.setItem(CURRENT_ID_KEY,currentId);
+  $('title').value=d.title||'無題';
+  editor.value=d.text||'';
+  applyAiState(d.aiTeacher);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  if(d.ink){
+    const im=new Image();
+    im.onload=()=>ctx.drawImage(im,0,0,workspace.clientWidth,workspace.clientHeight);
+    im.src=d.ink;
+  }
+  localStorage.setItem(KEY,JSON.stringify({...d,id:currentId}));
+  if(show)setStatus('「'+($('title').value)+'」を読み込みました');
+}
+function loadLocal(show=true){
+  const raw=localStorage.getItem(KEY);
+  if(!raw){if(show)alert('保存されたノートはありません。');return}
+  try{applyProject(JSON.parse(raw),show)}
+  catch(e){alert('保存データを読み込めませんでした。')}
+}
+$('load').onclick=()=>loadLocal(true);
+
+$('saveAs').onclick=()=>{
+  const proposed=$('title').value==='新しいノート'?'':$('title').value;
+  const name=prompt('保存するノート名を入力してください。',proposed);
+  if(name===null)return;
+  currentId=crypto.randomUUID();
+  $('title').value=name.trim()||'無題';
+  saveLocal(true);
+};
+
+function newDocument(){
+  currentId=crypto.randomUUID();
+  localStorage.setItem(CURRENT_ID_KEY,currentId);
+  $('title').value='新しいノート';
+  editor.value='';
+  applyAiState(null);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  localStorage.removeItem(KEY);
+  setStatus('新規ノート');
+}
+$('newDoc').onclick=()=>{
+  if(confirm('現在の内容を保存して、新しいノートを作りますか？')){
+    if(editor.value.trim()||$('title').value!=='新しいノート')saveLocal(false);
+    newDocument();
+  }
+};
+
+function safeName(s){return (s||'note').replace(/[\\/:*?"<>|]/g,'_').slice(0,60)}
+function download(blob,name){
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000);
+}
+$('exportTxt').onclick=()=>download(new Blob([editor.value],{type:'text/plain;charset=utf-8'}),safeName($('title').value)+'.txt');
+
+$('exportHtml').onclick=()=>{
+  const ink=canvas.toDataURL('image/png');
+  const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const doc=`<!doctype html><meta charset="utf-8"><title>${esc($('title').value)}</title>
+  <style>body{font-family:-apple-system,"Hiragino Sans",sans-serif;max-width:850px;margin:40px auto;padding:20px;line-height:1.8}
+  .paper{position:relative;white-space:pre-wrap;font-size:20px}.ink{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;pointer-events:none}</style>
+  <h1>${esc($('title').value)}</h1><div class="paper">${esc(editor.value)}<img class="ink" src="${ink}"></div>`;
+  download(new Blob([doc],{type:'text/html;charset=utf-8'}),safeName($('title').value)+'.html');
+};
+
+$('exportPng').onclick=()=>{
+  const out=document.createElement('canvas'), dpr=2;
+  out.width=workspace.clientWidth*dpr;out.height=workspace.clientHeight*dpr;
+  const c=out.getContext('2d');c.scale(dpr,dpr);c.fillStyle='#fffef9';c.fillRect(0,0,workspace.clientWidth,workspace.clientHeight);
+  c.fillStyle='#252525';c.font='20px -apple-system, Hiragino Sans, sans-serif';c.textBaseline='top';
+  const max=workspace.clientWidth-72, lh=36, paras=editor.value.split('\n');let y=34;
+  for(const para of paras){
+    let line='';
+    for(const ch of para){
+      if(c.measureText(line+ch).width>max){c.fillText(line,36,y);line=ch;y+=lh}else line+=ch;
+    }
+    c.fillText(line,36,y);y+=lh;if(y>workspace.clientHeight-30)break;
+  }
+  c.drawImage(canvas,0,0,workspace.clientWidth,workspace.clientHeight);
+  out.toBlob(b=>download(b,safeName($('title').value)+'.png'),'image/png');
+};
+
+
+function formatDate(iso){
+  if(!iso)return '';
+  try{return new Date(iso).toLocaleString('ja-JP')}catch(_){return iso}
+}
+function renderLibrary(){
+  const q=$('librarySearch').value.trim().toLowerCase();
+  const items=getLibrary().filter(d=>
+    !q||(d.title||'').toLowerCase().includes(q)||(d.text||'').toLowerCase().includes(q)
+  );
+  const box=$('libraryList');
+  box.innerHTML='';
+  if(!items.length){
+    box.innerHTML='<div class="empty-list">保存されたノートはありません。</div>';
+    return;
+  }
+  for(const d of items){
+    const card=document.createElement('div');card.className='note-card';
+    const info=document.createElement('div');
+    const title=document.createElement('div');title.className='note-card-title';title.textContent=d.title||'無題';
+    const meta=document.createElement('div');meta.className='note-card-meta';meta.textContent='更新：'+formatDate(d.updatedAt);
+    const preview=document.createElement('div');preview.className='note-card-preview';
+    preview.textContent=(d.text||'').replace(/\s+/g,' ').slice(0,90)||'（本文なし）';
+    info.append(title,meta,preview);
+    const actions=document.createElement('div');actions.className='note-actions';
+    const open=document.createElement('button');open.textContent='開く';
+    open.onclick=()=>{applyProject(d,true);$('libraryDialog').close()};
+    const del=document.createElement('button');del.textContent='削除';del.className='danger';
+    del.onclick=()=>{
+      if(!confirm('「'+(d.title||'無題')+'」を一覧から削除しますか？'))return;
+      setLibrary(getLibrary().filter(x=>x.id!==d.id));renderLibrary();
+    };
+    actions.append(open,del);card.append(info,actions);box.append(card);
+  }
+}
+$('library').onclick=()=>{renderLibrary();$('libraryDialog').showModal();setTimeout(()=>$('librarySearch').focus(),50)};
+$('closeLibrary').onclick=()=>$('libraryDialog').close();
+$('librarySearch').addEventListener('input',renderLibrary);
+
+$('icloud').onclick=async()=>{
+  const data=JSON.stringify(project(),null,2);
+  const name=safeName($('title').value)+'.json';
+  const file=new File([data],name,{type:'application/json'});
+  try{
+    if(navigator.canShare&&navigator.canShare({files:[file]})&&navigator.share){
+      await navigator.share({title:$('title').value,files:[file]});
+      setStatus('共有先を選びました');
+    }else{
+      download(file,name);
+      setStatus('ファイルを書き出しました。保存先でiCloud Driveを選べます');
+    }
+  }catch(e){
+    if(e.name!=='AbortError')setStatus('共有できませんでした');
+  }
+};
+
+$('backup').onclick=()=>{
+ const data=JSON.stringify(project(),null,2);
+ download(new Blob([data],{type:'application/json'}),safeName($('title').value)+'.json');
+};
+$('restore').onclick=()=>$('restoreFile').click();
+$('restoreFile').onchange=e=>{
+ const f=e.target.files[0]; if(!f)return;
+ const r=new FileReader();
+ r.onload=()=>{
+  try{
+   const d=JSON.parse(r.result);
+   currentId=d.id||crypto.randomUUID();
+   localStorage.setItem(CURRENT_ID_KEY,currentId);
+   $('title').value=d.title||'無題';
+   editor.value=d.text||'';
+   applyAiState(d.aiTeacher);
+   ctx.clearRect(0,0,canvas.width,canvas.height);
+   if(d.ink){const im=new Image(); im.onload=()=>ctx.drawImage(im,0,0,workspace.clientWidth,workspace.clientHeight); im.src=d.ink;}
+   saveLocal(false); setStatus('バックアップから復元しました');
+  }catch(e){alert('JSONを読み込めませんでした');}
+ };
+ r.readAsText(f,'utf-8');
+};
+
+window.addEventListener('beforeunload',()=>saveLocal(false));
+setTimeout(()=>loadLocal(false),100);
+</script>
+</body>
+</html>
